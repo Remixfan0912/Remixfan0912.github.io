@@ -10,13 +10,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet" />
-
   <!-- Prism.js Tomorrow Night theme -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" integrity="sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" integrity="sha384-nUkTNLI8COlMCRJ0FHIdX76If83145OTCLUx4gQyfnO0gGeO/sD9czGEUBxtkcUv" crossorigin="anonymous" />
 
   <!-- Marked.js for parsing markdown client-side -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js" integrity="sha384-3zf4Pen4fXU90jGg3cxmo7BF4dq8HMtF2s07c/Hhd1Fh+Encm6ApPvNm8vrMJbWu" crossorigin="anonymous"></script>
+
+  <!-- DOMPurify for HTML sanitization (DOM-based XSS protection) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.2/purify.min.js" integrity="sha384-Y2u+tbsy03z8jtFrNMeiCU+7VdECSbkt7TIkTU95qOc01ZuCLYXbHnfuJa6WHLHw" crossorigin="anonymous"></script>
 
   <style>
     /* ─── CSS Reset & Root ─────────────────────────────────── */
@@ -1783,9 +1785,9 @@ title: Cloudy Game教學細項
 </footer>
 
 <!-- Prism.js -->
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha384-06z5D//U/xpvxZHuUz92xBvq3DqBBFi7Up53HRrbV7Jlv7Yvh/MZ7oenfUe9iCEt" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js" integrity="sha384-WJdEkJKrbsqw0evQ4GB6mlsKe5cGTxBOw4KAEIa52ZLB7DDpliGkwdme/HMa5n1m" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js" integrity="sha384-6QJu8apxMmB9TiPVWzYKF5pRgKcz7snO0/QU+MrWmgBLECQjoa6erxX2VQ5t41Jd" crossorigin="anonymous"></script>
 
 <script>
 /* ─── Particle Network ───────────────────────────────────── */
@@ -2012,7 +2014,7 @@ function renderMarkdown(markdownText, fileName = "") {
   const rawHtml = marked.parse(preprocessed);
   
   const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = rawHtml;
+  tempDiv.innerHTML = DOMPurify.sanitize(rawHtml);
   
   const mainContent = document.getElementById('dynamic-content');
   mainContent.innerHTML = '';
@@ -2172,15 +2174,58 @@ function colorFilenameComments() {
 /* ─── File Load Handlers ────────────────────────────────── */
 const fileInput = document.getElementById('md-file-input');
 
+/**
+ * Validates a File object before reading it as markdown.
+ * Checks:
+ *  1. The filename ends with exactly ".md" (blocks double-extension like evil.py.md)
+ *  2. The file size is ≤ 5 MB
+ *  3. The MIME type is a text type (or empty, since .md has no official MIME)
+ */
+function validateMarkdownFile(file) {
+  if (!file) return false;
+
+  // 1. Ensure the filename ends strictly with ".md" and has no other dangerous extensions
+  //    before it (e.g. "malicious.exe.md" or "malicious.py.md" are rejected).
+  const nameParts = file.name.split('.');
+  if (nameParts.length < 2) return false;
+  const ext = nameParts[nameParts.length - 1].toLowerCase();
+  if (ext !== 'md') return false;
+
+  // Reject double-extension filenames (e.g. evil.py.md, shell.php.md)
+  const dangerousExts = ['exe','bat','cmd','sh','py','php','js','vbs','ps1','jar','rb','pl'];
+  if (nameParts.length > 2) {
+    const secondExt = nameParts[nameParts.length - 2].toLowerCase();
+    if (dangerousExts.includes(secondExt)) return false;
+  }
+
+  // 2. Limit file size to 5 MB
+  const MAX_SIZE = 5 * 1024 * 1024;
+  if (file.size > MAX_SIZE) {
+    alert('File is too large. Please upload a Markdown file under 5 MB.');
+    return false;
+  }
+
+  // 3. MIME type check — .md files have no official MIME, browsers may report
+  //    "text/plain", "text/markdown", or "" (empty). Reject known binary MIME types.
+  const mime = file.type.toLowerCase();
+  if (mime && !mime.startsWith('text/') && mime !== 'application/octet-stream') {
+    return false;
+  }
+
+  return true;
+}
+
 fileInput.addEventListener('change', e => {
   const file = e.target.files[0];
-  if (file) {
+  if (file && validateMarkdownFile(file)) {
     const reader = new FileReader();
     reader.onload = evt => {
       renderMarkdown(evt.target.result, file.name);
     };
     reader.readAsText(file);
   }
+  // Reset input so the same file can be re-selected to trigger a refresh
+  e.target.value = '';
 });
 
 // Drag and drop events on body
@@ -2191,7 +2236,7 @@ window.addEventListener('dragover', e => {
 window.addEventListener('drop', e => {
   e.preventDefault();
   const file = e.dataTransfer.files[0];
-  if (file && file.name.endsWith('.md')) {
+  if (file && validateMarkdownFile(file)) {
     const reader = new FileReader();
     reader.onload = evt => {
       renderMarkdown(evt.target.result, file.name);

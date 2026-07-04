@@ -1,3 +1,8 @@
+---
+title: Cloudy Adventure Document
+
+---
+
 [TOC]
 ## 閱讀文檔須知
 - 程式須知
@@ -7,6 +12,7 @@
 - 聲明
     - 著作權屬Rix所有，內容由Rix撰寫，模板由Gemini 3.5提供。
     - 此為中山大學資工營課務組 - 專案教學文檔，僅提供閱讀及參考。
+## [專案連結請點我](https://github.com/Remixfan0912/Cloudy-Adventure)
 ## 角色介紹、架構展示
 ### 基本角色  Player、Platform、Pickups
 #### Player架構
