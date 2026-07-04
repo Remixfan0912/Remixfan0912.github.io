@@ -1131,7 +1131,9 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const currentFile = filesToTry[index];
-    fetch(currentFile)
+    // Add timestamp as query param to bypass browser and CDN cache
+    const url = currentFile + '?v=' + Date.now();
+    fetch(url, { cache: 'no-cache' })
       .then(res => {
         if (!res.ok) throw new Error('Not found');
         return res.text();
